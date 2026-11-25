@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISL Translator — Studio UI</title>
+  <style>
+    * { box-sizing: border-box; font-family: Segoe UI, Arial, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #f8fafc; display: flex; min-height: 100vh; }
+    .sidebar { width: 240px; background: #111827; padding: 24px 16px; border-right: 1px solid #1f2937; }
+    .brand { font-size: 20px; font-weight: 700; color: #38bdf8; margin-bottom: 6px; }
+    .sub { font-size: 12px; color: #94a3b8; margin-bottom: 24px; }
+    .nav-btn { width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px; border: 0; border-radius: 10px;
+      background: transparent; color: #cbd5e1; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .nav-btn.active, .nav-btn:hover { background: #1e293b; color: #38bdf8; }
+    .main { flex: 1; padding: 24px; max-width: 1280px; }
+    .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 18px; }
+    .stream-box img { width: 100%; border-radius: 10px; background: #000; display: block; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    button.act { padding: 9px 14px; border-radius: 8px; border: 0; cursor: pointer; font-weight: 600;
+      background: #0284c7; color: #fff; }
+    button.act.sec { background: #334155; color: #f1f5f9; }
+    .tweak-box { margin-top: 16px; padding: 12px; background: #0f172a; border-radius: 10px; border: 1px solid #334155; }
+    .tweak-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .tweak-row:last-child { margin-bottom: 0; }
+    input[type="range"] { width: 180px; accent-color: #38bdf8; cursor: pointer; }
+    .toggle-label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #0f172a; color: #38bdf8; }
+    .hint-note { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+    .sentence-box { background: #0f172a; padding: 14px; border-radius: 10px; min-height: 76px; font-size: 20px; font-weight: 700; margin: 10px 0; }
+    input[type="text"] { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 15px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .chip { padding: 6px 12px; border-radius: 999px; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; cursor: pointer; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #334155; padding: 9px; text-align: left; font-size: 14px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">ISL Translator</div>
+    <div class="sub">Bi-Directional Sign Studio</div>
+    <button class="nav-btn active" onclick="showTab('live', this)">1. Live Sign → Text</button>
+    <button class="nav-btn" onclick="showTab('avatar', this)">2. Text → Sign Avatar</button>
+    <button class="nav-btn" onclick="showTab('info', this)">3. Signs & Benchmarks</button>
+  </aside>
+
+  <main class="main">
+    <section id="tab-live">
+      <h2>Live Camera & Landmark Recognition</h2>
+      <div class="grid">
+        <div class="card stream-box">
+          <img src="/stream/camera" alt="Live Camera Stream" />
+          <div class="controls">
+            <button class="act" onclick="postAct('recalibrate')">Recalibrate Rest Pose (r)</button>
+            <button class="act sec" onclick="postAct('backspace')">Backspace</button>
+            <button class="act sec" onclick="postAct('clear')">Clear</button>
+            <button class="act" onclick="postAct('speak')">Speak Sentence (s)</button>
+            <button class="act sec" onclick="postAct('mirror')">Toggle Mirror</button>
+            <button class="act" onclick="signDetected()">Avatar Sign Sentence</button>
+          </div>
+
+          <div class="tweak-box">
+            <div class="tweak-row">
+              <label for="conf-slider"><strong>Minimum Confidence:</strong> <span id="conf-val">45%</span></label>
+              <input id="conf-slider" type="range" min="0.20" max="0.90" step="0.05" value="0.45"
+                     oninput="onConfInput(this.value)" onchange="onConfChange(this.value)" />
+            </div>
+            <div class="tweak-row">
+              <label class="toggle-label" for="profile-toggle">
+                <input id="profile-toggle" type="checkbox" checked onchange="onProfileToggle(this.checked)" />
+                <span>Use Calibrated Profile (<code>profile.npz</code>)</span>
+              </label>
+              <span class="pill" id="profile-status">CHECKING</span>
+            </div>
+            <div class="hint-note" id="profile-hint">ON = personal prototypes (when available) | OFF = base model only</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div>State: <span class="pill" id="st-state">LOADING</span> &nbsp; Movement: <span id="st-dev">0.00</span></div>
+          <h3 style="margin-top:16px; margin-bottom:6px;">Recognised Sentence</h3>
+          <div class="sentence-box" id="st-sentence">—</div>
+          <div>Last Sign: <strong id="st-last">—</strong></div>
+          <h4 style="margin-top:16px; margin-bottom:8px;">Top-3 Predictions</h4>
+          <div id="st-top3"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-avatar" class="hidden">
+      <h2>Text → Sign 3D Avatar</h2>
+      <div class="grid">
+        <div class="card stream-box">
+          <img src="/stream/avatar" alt="Avatar Stream" />
+        </div>
+        <div class="card">
+          <label for="txt-input">Type sentence or words:</label>
+          <input id="txt-input" type="text" placeholder="e.g. Hello how are you" />
+          <div class="controls">
+            <button class="act" onclick="signText()">Sign It</button>
+          </div>
+          <div class="chips">
+            <span class="chip" onclick="quickSign('Hello')">Hello</span>
+            <span class="chip" onclick="quickSign('Thank you')">Thank you</span>
+            <span class="chip" onclick="quickSign('How are you')">How are you</span>
+            <span class="chip" onclick="quickSign('Good morning')">Good morning</span>
+            <span class="chip" onclick="quickSign('Good night')">Good night</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-info" class="hidden">
+      <h2>Model Benchmarks & Supported Signs</h2>
+      <div class="card">
+        <h3>Dataset Test Set (122 samples, 17 signs)</h3>
+        <table>
+          <thead><tr><th>Model</th><th>Params</th><th>Accuracy</th><th>Top-3</th><th>Latency</th><th>Train Time</th></tr></thead>
+          <tbody>
+            <tr><td>Baseline</td><td>76,177</td><td>45.9%</td><td>85.2%</td><td>0.39 ms</td><td>1 s</td></tr>
+            <tr><td>GRU</td><td>151,288</td><td>73.8%</td><td>95.1%</td><td>6.64 ms</td><td>61 s</td></tr>
+            <tr><td><strong>Transformer</strong></td><td><strong>83,544</strong></td><td><strong>77.0%</strong></td><td><strong>95.9%</strong></td><td><strong>1.95 ms</strong></td><td><strong>54 s</strong></td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:14px; color:#cbd5e1;">Personal Calibration (9 signs, 44 samples): <strong>52.0% → 87.0%</strong> at k = 3 shots.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let isDraggingSlider = false;
+
+    function showTab(name, btn) {
+      ['live', 'avatar', 'info'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+      });
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+
+    async function postAct(action, extra = {}) {
+      const res = await fetch('/api/action', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action, ...extra})
+      });
+      return res.json();
+    }
+
+    function onConfInput(val) {
+      isDraggingSlider = true;
+      document.getElementById('conf-val').textContent = Math.round(parseFloat(val) * 100) + '%';
+    }
+
+    async function onConfChange(val) {
+      const num = parseFloat(val);
+      document.getElementById('conf-val').textContent = Math.round(num * 100) + '%';
+      await postAct('set_min_conf', {min_conf: num});
+      isDraggingSlider = false;
+    }
+
+    async function onProfileToggle(checked) {
+      const data = await postAct('toggle_profile', {use_profile: checked});
+      updateProfileUI(data.use_profile, data.has_profile);
+    }
+
+    function updateProfileUI(useProfile, hasProfile) {
+      const chk = document.getElementById('profile-toggle');
+      const pill = document.getElementById('profile-status');
+      const hint = document.getElementById('profile-hint');
+      if (!hasProfile) {
+        chk.checked = false;
+        pill.textContent = 'NO PROFILE';
+        hint.textContent = 'models/profile.npz not found — running base model';
+        return;
+      }
+      chk.checked = !!useProfile;
+      pill.textContent = useProfile ? 'CALIBRATED' : 'BASE MODEL';
+      hint.textContent = useProfile
+        ? 'Using personal prototypes from models/profile.npz'
+        : 'Using base model only (calibrated profile off)';
+    }
+
+    async function signText() {
+      const val = document.getElementById('txt-input').value;
+      await postAct('sign_text', {text: val});
+    }
+
+    async function quickSign(val) {
+      document.getElementById('txt-input').value = val;
+      await postAct('sign_text', {text: val});
+    }
+
+    async function signDetected() {
+      await postAct('sign_detected');
+      const avatarBtn = document.querySelectorAll('.nav-btn')[1];
+      showTab('avatar', avatarBtn);
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const d = await res.json();
+        document.getElementById('st-state').textContent = d.state;
+        document.getElementById('st-dev').textContent = d.dev;
+        document.getElementById('st-sentence').textContent = (d.sentence && d.sentence.length) ? d.sentence.join(' ') : '—';
+        document.getElementById('st-last').textContent = d.last ? `${d.last[0]} (${Math.round(d.last[1]*100)}%)` : '—';
+        document.getElementById('st-top3').innerHTML = (d.top3 || []).map(x => `<div>${x[0]}: <strong>${x[1]}%</strong></div>`).join('') || '—';
+
+        if (!isDraggingSlider && typeof d.min_conf === 'number') {
+          document.getElementById('conf-slider').value = d.min_conf.toFixed(2);
+          document.getElementById('conf-val').textContent = Math.round(d.min_conf * 100) + '%';
+        }
+        updateProfileUI(d.use_profile, d.has_profile);
+      } catch (e) {}
+    }
+
+    setInterval(pollStatus, 400);
+    pollStatus();
+  </script>
+</body>
+</html>
